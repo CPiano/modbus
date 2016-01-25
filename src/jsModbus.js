@@ -93,3 +93,6 @@ exports.createTCPServer = function (port, host, cb) {
     });
 
 };
+
+exports.FC = handler.FC;
+

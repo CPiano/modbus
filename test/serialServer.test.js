@@ -6,7 +6,7 @@ var assert = require('assert'),
     eventEmitter = require('events').EventEmitter,
     modbusHandler = require('../src/handler');
 
-describe('Modbus TCP/IP Server', function () {
+describe('Modbus Serial Server', function () {
 
   var modbusServer, serverApiDummy, socketApiDummy;
 
@@ -101,6 +101,7 @@ describe('Modbus TCP/IP Server', function () {
      *  Make a request through the socket.emit call and
      *  check what socket.write will be called with
      */
+
     it('should respond to a readCoils function call', function () {
 
       var handler = sinon.stub().returns(
@@ -161,7 +162,160 @@ describe('Modbus TCP/IP Server', function () {
        assert.deepEqual(res, spy.getCall(0).args[0]);
     });
 
-    it('should respond with an error response', function () {
+    it('should handle a write single coil request', function () {
+
+      var stub = sinon.stub()
+		.withArgs(10, true)
+		.returns([10, true]);
+
+      server.addHandler(5, stub);
+
+      var req = Put()
+	.word8(5)
+	.word16be(10)
+	.word16be(0xFF00)
+	.buffer();
+
+      var res = Put()
+	.word8(5)
+	.word16be(10)
+	.word16be(0xFF00)
+	.buffer();
+
+      var spy = sinon.spy(socket, 'write');
+
+      socket.emit('data', req);
+
+      assert.ok(stub.called);
+      assert.deepEqual(stub.args[0], [10, true]);
+      assert.deepEqual(res, spy.getCall(0).args[0]); 
+
+    });
+
+    it('should handle a write single holding register request', function () {
+
+      var stub = sinon.stub()
+		.withArgs(10, 0xBEEF)
+		.returns([10, 0xBEEF]);
+
+      server.addHandler(6, stub);
+
+      var req = Put()
+	.word8(6)
+	.word16be(10)
+	.word16be(0xBEEF)
+	.buffer();
+
+      var res = Put()
+	.word8(6)
+	.word16be(10)
+	.word16be(0xBEEF)
+	.buffer();
+
+      var spy = sinon.spy(socket, 'write');
+
+      socket.emit('data', req);
+
+      assert.ok(stub.called);
+      assert.deepEqual(stub.args[0], [10, 0xBEEF]);
+      assert.deepEqual(res, spy.getCall(0).args[0]); 
+
+    });
+
+    it('should handle a write multiple holding register request', function () {
+
+      var stub = sinon.stub()
+		.withArgs(10, [0xBEEF, 0xC0DE, 0xDEAD])
+		.returns([10, 3]);
+
+      server.addHandler(16, stub);
+
+      var req = Put()
+	.word8(16)
+	.word16be(10)
+	.word16be(3)
+	.word8(6)
+	.word16be(0xBEEF)
+	.word16be(0xC0DE)
+	.word16be(0xDEAD)
+	.buffer();
+
+      var res = Put()
+	.word8(16)
+	.word16be(10)
+	.word16be(3)
+	.buffer();
+
+      var spy = sinon.spy(socket, 'write');
+
+      socket.emit('data', req);
+
+      assert.ok(stub.called);
+      assert.deepEqual(stub.args[0], [10, [0xBEEF, 0xC0DE, 0xDEAD]]);
+      assert.deepEqual(res, spy.getCall(0).args[0]); 
+
+    });
+
+    it('should handle a read holding registers request', function () {
+
+      var stub = sinon.stub()
+		.withArgs(10, 4)
+		.returns([[15, 16, 17, 18]]);
+
+      server.addHandler(3, stub);
+
+      var req = Put()
+	.word8(3)
+	.word16be(10)
+	.word16be(4)
+	.buffer();
+
+      var res = Put()
+	.word8(3)
+	.word8(8)
+	.word16be(15)
+	.word16be(16)
+	.word16be(17)
+	.word16be(18)
+	.buffer();
+
+      var spy = sinon.spy(socket, 'write');
+
+      socket.emit('data', req);
+
+      assert.ok(stub.called);
+      assert.deepEqual(stub.args[0], [10, 4]);
+      assert.deepEqual(res, spy.getCall(0).args[0]); 
+
+    });
+
+    it('should respond with an error response to read holding registers for too many registers', function () {
+      var stub = sinon.stub()
+		.withArgs(10, 4)
+		.returns([[15, 16, 17, 18]]);
+
+      server.addHandler(3, stub);
+
+      var req = Put()
+		.word8(3)
+		.word16be(10)
+		.word16be(200)
+		.buffer();
+
+       var res = Put()
+		.word8(0x83)   // error code (0x03 + 0x80)
+		.word8(0x03)   // expection code (illegal value)
+		.buffer();
+
+        var spy = sinon.spy(socket, 'write');
+
+	socket.emit('data', req);
+	
+	assert.deepEqual(res, spy.getCall(0).args[0]);
+
+    });
+	
+	it('should respond with an error response', function () {
 
       var req = Put()
 	.word8(4)      // function code     // PDU
@@ -207,38 +361,6 @@ describe('Modbus TCP/IP Server', function () {
       assert.deepEqual(res, writeSpy.getCall(0).args[0]);
 
     });
-
-    it('should handle a write single coil request', function () {
-
-      var stub = sinon.stub()
-		.withArgs(10, true)
-		.returns([10, true]);
-
-      server.addHandler(5, stub);
-
-      var req = Put()
-	.word8(5)
-	.word16be(10)
-	.word16be(0xFF00)
-	.buffer();
-
-      var res = Put()
-	.word8(5)
-	.word16be(10)
-	.word16be(0xFF00)
-	.buffer();
-
-      var spy = sinon.spy(socket, 'write');
-
-      socket.emit('data', req);
-
-      assert.ok(stub.called);
-      assert.deepEqual(stub.args[0], [10, true]);
-      assert.deepEqual(res, spy.getCall(0).args[0]); 
-
-    });
-
-
   });
 
 });
