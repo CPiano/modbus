@@ -67,20 +67,29 @@ exports.createTCPClient = function (port, host, unit_id, cb) {
 };
 
 
-exports.createTCPServer = function (port, host, cb) {
+exports.createTCPServer = function (port, host, newServerCallback, tcpServerErrorCallback, connectionErrorCallback) {
 
     var net             = require('net'),
     tcpServerModule     = require('./tcpServer'),
     serialServerModule  = require('./serialServer');
 
-    tcpServerModule.setLogger(log);
+	if ('function' === typeof host) {
+		connectionErrorCallback = tcpServerErrorCallback || function () {};
+		tcpServerErrorCallback = newServerCallback || function () {};
+		newServerCallback = host;
+		host = null;		
+	}
+	
+	tcpServerModule.setLogger(log);
     serialServerModule.setLogger(log);
 
-    var socket = net.createServer().listen(port, host);
-
-    socket.on('error', function (e) { cb(e); });
+    var socket = net.createServer();
+	
+	socket.on('error', tcpServerErrorCallback);
+	
     socket.on('connection', function (s) {
-
+		s.on('error', connectionErrorCallback);
+		
         var tcpServer = tcpServerModule.create(s);
 
         var server = serialServerModule.create(
@@ -88,10 +97,15 @@ exports.createTCPServer = function (port, host, cb) {
             handler.Server.RequestHandler,
             handler.Server.ResponseHandler);
 
-            cb(null, server);
+            newServerCallback(server);
 
     });
 
+	if (null == host) {
+		socket.listen(port);
+	} else {
+		socket.listen(port, host);
+	}
 };
 
 exports.FC = handler.FC;
